@@ -1,6 +1,6 @@
 import java.util.regex.Pattern;
 
-class TokenDefinition {
+public class TokenDefinition {
     private final String type;
     private final Pattern pattern;
 
@@ -9,11 +9,6 @@ class TokenDefinition {
         this.pattern = Pattern.compile(regex);
     }
 
-    public String getType() {
-        return type;
-    }
-
-    public Pattern getPattern() {
-        return pattern;
-    }
+    public String getType() { return type; }
+    public Pattern getPattern() { return pattern; }
 }
