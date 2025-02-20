@@ -1,5 +1,5 @@
 Comments are made using "$$$"
-Multi line Comments are made by "$$"
+Multi line Comments are made by "$**$"
 
 operators are +, -, *, /, %, =
 
