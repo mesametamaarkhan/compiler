@@ -5,7 +5,7 @@ import java.util.*;
 
 public class LexicalAnalyzer {
     private static final Map<String, String> symbolRegistry = new HashMap<>();
-    private static final Set<String> RESERVED_WORDS = Set.of("faal", "haraf", "ishariyah", "adad");
+    private static final Set<String> RESERVED_WORDS = Set.of("faal", "haraf", "ishariyah", "adad", "faal_sahi", "faal_ghalat");
     private static final Set<String> MATH_OPERATORS = Set.of("+", "-", "*", "/", "%", "=");
 
     private static NFA constructIntegerNFA() {
@@ -116,20 +116,20 @@ public class LexicalAnalyzer {
 
     private static void classifyToken(String token) {
         if (RESERVED_WORDS.contains(token)) {
-            System.out.println("[Keyword] -> " + token);
+            System.out.println("<KEYWORD, " + token + ">");
         }
         else if (MATH_OPERATORS.contains(token)) {
-            System.out.println("[Operator] -> " + token);
+            System.out.println("<OPERATOR, " + token + ">");
         }
         else if (token.matches("\\d+")) {
-            System.out.println("[Integer] -> " + token);
+            System.out.println("<INTEGER, " + token + ">");
         }
         else if (token.matches("\\d+\\.\\d+")) {
-            System.out.println("[Decimal] -> " + token);
+            System.out.println("<DECIMAL, " + token + ">");
         }
         else {
             symbolRegistry.putIfAbsent(token, "auto");
-            System.out.println("[Identifier] -> " + token + " (Auto Declared)");
+            System.out.println("<IDENTIFIER, " + token + ">");
         }
     }
 
@@ -142,7 +142,12 @@ public class LexicalAnalyzer {
 
         while (!queue.isEmpty()) {
             DFAState state = queue.poll();
-            System.out.print("State " + state.nfaStates + " (Final: " + state.isFinal + ") -> ");
+            if(state.isFinal) {
+                System.out.print("State " + state.nfaStates + " (Final: " + state.isFinal + ") -> ");
+            }
+            else {
+                System.out.print("State " + state.nfaStates + ") -> ");
+            }
             for (Map.Entry<Character, DFAState> entry : state.transitions.entrySet()) {
                 System.out.print("[" + entry.getKey() + " -> " + entry.getValue().nfaStates + "] ");
                 if (!visited.contains(entry.getValue())) {
