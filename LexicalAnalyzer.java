@@ -4,218 +4,143 @@ import java.io.IOException;
 import java.util.*;
 
 public class LexicalAnalyzer {
-    private static final Map<String, String> symbolTable = new HashMap<>();
-    private static final Set<String> KEYWORDS = Set.of(
-            "yo", "ghalat", "dekha", "dosra", "apna" , "is", "sun"
-    );
+    private static final Map<String, String> symbolRegistry = new HashMap<>();
+    private static final Set<String> MATH_OPERATORS = Set.of("+", "-", "*", "/", "%", "=");
+    private static final Set<String> RESERVED_WORDS = Set.of("faal", "haraf", "ishariyah", "adad");
 
-    private static final Set<String> OPERATORS = Set.of(
-            "+",
-            "-",
-            "*",
-            "/",
-            "%",
-            "=",
-            "==",
-            ">",
-            "<",
-            ">=",
-            "<="
-    );
-
-    private static NFA buildIntegerNFA() {
-        NFAState s0 = new NFAState(0, false);
-        NFAState s1 = new NFAState(1, true);
-        for (char ch = '0'; ch <= '9'; ch++) {
-            s0.addTransition(ch, s1);
-            s1.addTransition(ch, s1);
+    private static NFA makeIntNFA() {
+        NFAState start = new NFAState(0, false);
+        NFAState accept = new NFAState(1, true);
+        for (char digit = '0'; digit <= '9'; digit++) {
+            start.addStateTransition(digit, accept);
+            accept.addStateTransition(digit, accept);
         }
-        return new NFA(s0, Set.of(s1));
+        return new NFA(start, Set.of(accept));
     }
 
-    private static NFA buildDecimalNFA() {
-        NFAState s0 = new NFAState(0, false);
-        NFAState s1 = new NFAState(1, false);
-        NFAState s2 = new NFAState(2, true);
+    private static NFA makeDecNFA() {
+        NFAState start = new NFAState(0, false);
+        NFAState decimal = new NFAState(1, false);
+        NFAState accept = new NFAState(2, true);
 
-        for (char c = '0'; c <= '9'; c++) {
-            s0.addTransition(c, s0);
-            s1.addTransition(c, s2);
-            s2.addTransition(c, s2);
+        for (char digit = '0'; digit <= '9'; digit++) {
+            start.addStateTransition(digit, start);
+            decimal.addStateTransition(digit, accept);
+            accept.addStateTransition(digit, accept);
         }
-        s0.addTransition('.', s1);
-        return new NFA(s0, Set.of(s2));
+        start.addStateTransition('.', decimal);
+        return new NFA(start, Set.of(accept));
     }
 
-    private static DFA convertNFAtoDFA(NFA nfa) {
-        Map<Set<NFAState>, DFAState> mapping = new HashMap<>();
+    private static DFA NFAtoDFA(NFA nfa) {
+        Map<Set<NFAState>, DFAState> stateMapping = new HashMap<>();
         Queue<Set<NFAState>> queue = new LinkedList<>();
 
-        Set<NFAState> startSet = Set.of(nfa.startState);
-        DFAState startDFAState = new DFAState(startSet);
-        mapping.put(startSet, startDFAState);
-        queue.add(startSet);
+        Set<NFAState> initialSet = Set.of(nfa.initialState);
+        DFAState initialDFAState = new DFAState(initialSet);
+        stateMapping.put(initialSet, initialDFAState);
+        queue.add(initialSet);
 
         while (!queue.isEmpty()) {
             Set<NFAState> currentSet = queue.poll();
-            DFAState currentDFAState = mapping.get(currentSet);
-
-            Map<Character, Set<NFAState>> transitions = new HashMap<>();
+            DFAState currentDFAState = stateMapping.get(currentSet);
+            Map<Character, Set<NFAState>> transitionMap = new HashMap<>();
 
             for (NFAState state : currentSet) {
-                for (Map.Entry<Character, List<NFAState>> entry : state.transitions.entrySet()) {
+                for (Map.Entry<Character, List<NFAState>> entry : state.transitionMap.entrySet()) {
                     char symbol = entry.getKey();
-                    transitions.putIfAbsent(symbol, new HashSet<>());
-                    transitions.get(symbol).addAll(entry.getValue());
+                    transitionMap.putIfAbsent(symbol, new HashSet<>());
+                    transitionMap.get(symbol).addAll(entry.getValue());
                 }
             }
 
-            for (Map.Entry<Character, Set<NFAState>> entry : transitions.entrySet()) {
+            for (Map.Entry<Character, Set<NFAState>> entry : transitionMap.entrySet()) {
                 char symbol = entry.getKey();
                 Set<NFAState> targetSet = entry.getValue();
 
-                mapping.putIfAbsent(targetSet, new DFAState(targetSet));
-                currentDFAState.transitions.put(symbol, mapping.get(targetSet));
+                stateMapping.putIfAbsent(targetSet, new DFAState(targetSet));
+                currentDFAState.transitionMap.put(symbol, stateMapping.get(targetSet));
 
-                if (!mapping.containsKey(targetSet)) {
+                if (!stateMapping.containsKey(targetSet)) {
                     queue.add(targetSet);
                 }
             }
         }
-        return new DFA(startDFAState);
+        return new DFA(initialDFAState);
     }
 
-    private static void tokenizeFile(String filename) throws IOException {
-        BufferedReader reader = new BufferedReader(new FileReader(filename));
-        String line;
+    private static void analyzeTokens(String filePath) throws IOException {
+        BufferedReader fileReader = new BufferedReader(new FileReader(filePath));
+        String codeLine;
 
-        while ((line = reader.readLine()) != null) {
-            int length = line.length();
-            int i = 0;
+        while ((codeLine = fileReader.readLine()) != null) {
+            int length = codeLine.length();
+            int index = 0;
 
-            while (i < length) {
-                char ch = line.charAt(i);
-
-                if (Character.isWhitespace(ch)) {
-                    i++;
+            while (index < length) {
+                char currentChar = codeLine.charAt(index);
+                if (Character.isWhitespace(currentChar)) {
+                    index++;
                     continue;
                 }
+                StringBuilder tokenBuffer = new StringBuilder();
 
-                StringBuilder token = new StringBuilder();
-
-                if (Character.isLetter(ch)) {
-                    // Identifier or keyword
-                    while (i < length && (Character.isLetterOrDigit(line.charAt(i)) || line.charAt(i) == '_')) {
-                        token.append(line.charAt(i));
-                        i++;
+                if (Character.isLetter(currentChar)) {
+                    while (index < length && (Character.isLetterOrDigit(codeLine.charAt(index)) || codeLine.charAt(index) == '_')) {
+                        tokenBuffer.append(codeLine.charAt(index++));
                     }
-                    processToken(token.toString());
-                } else if (Character.isDigit(ch)) {
-                    // Number (integer or decimal)
-                    boolean isDecimal = false;
-                    while (i < length && (Character.isDigit(line.charAt(i)) || line.charAt(i) == '.')) {
-                        if (line.charAt(i) == '.') {
-                            isDecimal = true;
-                        }
-                        token.append(line.charAt(i));
-                        i++;
+                    classifyToken(tokenBuffer.toString());
+                }
+                else if (Character.isDigit(currentChar)) {
+                    boolean hasDecimal = false;
+                    while (index < length && (Character.isDigit(codeLine.charAt(index)) || codeLine.charAt(index) == '.')) {
+                        if (codeLine.charAt(index) == '.') hasDecimal = true;
+                        tokenBuffer.append(codeLine.charAt(index++));
                     }
-                    processToken(token.toString());
-                } else if (ch == '\'' || ch == '\"') {
-                    // Character or string literal
-                    char quoteType = ch;
-                    token.append(ch);
-                    i++;
-                    while (i < length && line.charAt(i) != quoteType) {
-                        token.append(line.charAt(i));
-                        i++;
-                    }
-                    if (i < length) {
-                        token.append(quoteType); // Closing quote
-                        i++;
-                    }
-                    processToken(token.toString());
-                } else if (ch == '#' && i + 2 < length && line.charAt(i + 1) == '#' && line.charAt(i + 2) == '#') {
-                    // Single-line comment
-                    token.append("###");
-                    i += 3;
-                    while (i < length && line.charAt(i) != '\n') {
-                        token.append(line.charAt(i));
-                        i++;
-                    }
-                    processToken(token.toString());
-                } else if (ch == '.' && i + 1 < length && line.charAt(i + 1) == '+') {
-                    // Multi-line comment
-                    token.append(".+");
-                    i += 2;
-                    while (i < length && !(line.charAt(i) == '+' && i + 1 < length && line.charAt(i + 1) == '.')) {
-                        token.append(line.charAt(i));
-                        i++;
-                    }
-                    if (i < length) {
-                        token.append("+.");
-                        i += 2;
-                    }
-                    processToken(token.toString());
-                } else {
-                    // Operator or unknown token
-                    token.append(ch);
-                    i++;
-                    processToken(token.toString());
+                    classifyToken(tokenBuffer.toString());
+                }
+                else {
+                    tokenBuffer.append(currentChar);
+                    index++;
+                    classifyToken(tokenBuffer.toString());
                 }
             }
         }
-        reader.close();
+        fileReader.close();
     }
 
-    private static void printSymbolTable() {
-        System.out.println("Symbol Table Contents:");
-        for (Map.Entry<String, String> entry : symbolTable.entrySet()) {
-            System.out.println("Variable: " + entry.getKey() + " | Type: " + entry.getValue());
-        }
+    private static void displaySymbolRegistry() {
+        System.out.println("\n--- Symbol Registry ---");
+        symbolRegistry.forEach((key, value) -> System.out.println("| " + key + " | Type: " + value + " |"));
     }
 
-    private static void processToken(String token) {
-        if (KEYWORDS.contains(token)) {
-            System.out.println("[KEYWORD: " + token + "]");
-        } else if (OPERATORS.contains(token)) {
-            System.out.println("[OPERATOR: " + token + "]");
+    private static void classifyToken(String token) {
+        if (RESERVED_WORDS.contains(token)) {
+            System.out.println("[Keyword] -> " + token);
+        } else if (MATH_OPERATORS.contains(token)) {
+            System.out.println("[Operator] -> " + token);
         } else if (token.matches("\\d+")) {
-            System.out.println("[INTEGER: " + token + "]");
+            System.out.println("[Integer] -> " + token);
         } else if (token.matches("\\d+\\.\\d+")) {
-            System.out.println("[DECIMAL: " + token + "]");
-        } else if (token.startsWith("\"") && token.endsWith("\"")) {
-            System.out.println("[STRING_LITERAL: " + token + "]");
-        } else if (token.startsWith("'") && token.endsWith("'") && token.length() == 3) {
-            System.out.println("[CHAR_LITERAL: " + token + "]");
-        } else if (token.startsWith("###")) {
-            System.out.println("[COMMENT: " + token + "]");
-        } else if (token.startsWith(".+") && token.endsWith("+.")) {
-            System.out.println("[MULTI_LINE_COMMENT: " + token + "]");
+            System.out.println("[Decimal] -> " + token);
         } else {
-            // For an identifier, check for implicit declaration.
-            if (!symbolTable.containsKey(token)) {
-                // For simplicity, we'll assume a default type.
-                // In a real system, you'd infer type based on context.
-                symbolTable.put(token, "auto");
-                System.out.println("[IMPLICIT DECLARATION: " + token + " of type auto]");
-            }
-            System.out.println("[IDENTIFIER: " + token + "]");
+            symbolRegistry.putIfAbsent(token, "auto");
+            System.out.println("[Identifier] -> " + token + " (Auto Declared)");
         }
     }
-    private static void printTransitionTable(DFA dfa) {
-        System.out.println("DFA Transition Table:");
-        // Use a set to keep track of visited DFAStates
+
+    private static void renderStateTable(DFA dfa) {
+        System.out.println("\n--- DFA Transition Table ---");
         Set<DFAState> visited = new HashSet<>();
         Queue<DFAState> queue = new LinkedList<>();
-        queue.add(dfa.startState);
-        visited.add(dfa.startState);
+        queue.add(dfa.initialState);
+        visited.add(dfa.initialState);
 
         while (!queue.isEmpty()) {
             DFAState state = queue.poll();
-            System.out.print("State " + state.nfaStates + " (Final: " + state.isFinal + ") -> ");
-            for (Map.Entry<Character, DFAState> entry : state.transitions.entrySet()) {
-                System.out.print("[" + entry.getKey() + " -> " + entry.getValue().nfaStates + "] ");
+            System.out.print("State " + state.nfaStateSet + " (Final: " + state.isAcceptState + ") -> ");
+            for (Map.Entry<Character, DFAState> entry : state.transitionMap.entrySet()) {
+                System.out.print("[" + entry.getKey() + " -> " + entry.getValue().nfaStateSet + "] ");
                 if (!visited.contains(entry.getValue())) {
                     visited.add(entry.getValue());
                     queue.add(entry.getValue());
@@ -226,16 +151,17 @@ public class LexicalAnalyzer {
     }
 
     public static void main(String[] args) throws IOException {
-        System.out.println("Tokenizing 'example.bro'...");
+        System.out.println("Processing file: example.bro\n");
 
-        NFA integerNFA = buildIntegerNFA();
-        NFA decimalNFA = buildDecimalNFA();
+        NFA intNFA = makeIntNFA();
+        NFA decimalNFA = makeDecNFA();
 
-        DFA integerDFA = convertNFAtoDFA(integerNFA);
-        DFA decimalDFA = convertNFAtoDFA(decimalNFA);
+        DFA intDFA = NFAtoDFA(intNFA);
+        DFA decimalDFA = NFAtoDFA(decimalNFA);
 
-        tokenizeFile("example.bro");
-        printTransitionTable(integerDFA);
-        printSymbolTable();
+        analyzeTokens("example.bro");
+        renderStateTable(intDFA);
+        renderStateTable(decimalDFA);
+        displaySymbolRegistry();
     }
 }
