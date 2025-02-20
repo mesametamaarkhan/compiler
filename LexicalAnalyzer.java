@@ -5,7 +5,7 @@ import java.util.*;
 
 public class LexicalAnalyzer {
     private static final Map<String, String> symbolRegistry = new HashMap<>();
-    private static final Set<String> MATH_OPERATORS = Set.of("+", "-", "*", "/", "%", "=");
+    private static final Set<String> OPERATORS = Set.of("+", "-", "*", "/", "%", "=");
     private static final Set<String> RESERVED_WORDS = Set.of("faal", "haraf", "ishariyah", "adad", "faal_sahi", "faal_ghalat");
 
     private static NFA makeIntNFA() {
@@ -109,16 +109,11 @@ public class LexicalAnalyzer {
         fileReader.close();
     }
 
-    private static void displaySymbolRegistry() {
-        System.out.println("\n--- Symbol Registry ---");
-        symbolRegistry.forEach((key, value) -> System.out.println("| " + key + " | Type: " + value + " |"));
-    }
-
     private static void classifyToken(String token) {
         if (RESERVED_WORDS.contains(token)) {
             System.out.println("<KEYWORD, " + token + ">");
         }
-        else if (MATH_OPERATORS.contains(token)) {
+        else if (OPERATORS.contains(token)) {
             System.out.println("<OPERATOR, " + token + ">");
         }
         else if (token.matches("\\d+")) {
@@ -134,7 +129,7 @@ public class LexicalAnalyzer {
     }
 
     private static void renderStateTable(DFA dfa) {
-        System.out.println("\n--- DFA Transition Table ---");
+        System.out.println("\n--- DFA Transitions ---");
         Set<DFAState> visited = new HashSet<>();
         Queue<DFAState> queue = new LinkedList<>();
         queue.add(dfa.initialState);
@@ -142,7 +137,13 @@ public class LexicalAnalyzer {
 
         while (!queue.isEmpty()) {
             DFAState state = queue.poll();
-            System.out.print("State " + state.nfaStateSet + " (Final: " + state.isAcceptState + ") -> ");
+            if(state.isAcceptState) {
+                System.out.print("State " + state.nfaStateSet + " (Final: " + state.isAcceptState + ") -> ");
+            }
+            else {
+                System.out.print("State " + state.nfaStateSet + " -> ");
+            }
+
             for (Map.Entry<Character, DFAState> entry : state.transitionMap.entrySet()) {
                 System.out.print("[" + entry.getKey() + " -> " + entry.getValue().nfaStateSet + "] ");
                 if (!visited.contains(entry.getValue())) {
@@ -152,6 +153,11 @@ public class LexicalAnalyzer {
             }
             System.out.println();
         }
+    }
+
+    private static void displaySymbolRegistry() {
+        System.out.println("\n--- Symbol Table ---");
+        symbolRegistry.forEach((key, value) -> System.out.println("( " + key + " , " + value + " )"));
     }
 
     public static void main(String[] args) throws IOException {
