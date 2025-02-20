@@ -21,61 +21,68 @@ public class LexicalAnalyzer {
     }
 
     public List<Token> tokenize(String input) {
-        input = preprocess(input); // Remove comments and trim spaces
+        input = preprocess(input);
         List<Token> tokens = new ArrayList<>();
-        int index = 0;
-        int line = 1;
+        String[] lines = input.split("\n");
+        int lineNumber = 1;
+        String lastSeenType = null;  // Track datatype for identifiers
 
-        while (index < input.length()) {
-            char currentChar = input.charAt(index);
+        for (String line : lines) {
+            int index = 0;
+            line = line.trim();
 
-            // Handle Newline Character
-            if (currentChar == '\n') {
-                line++;
-                index++;
-                continue; // Move to next character
-            }
+            while (index < line.length()) {
+                boolean matched = false;
 
-            boolean matched = false;
+                for (TokenDefinition definition : TOKEN_DEFINITIONS) {
+                    Matcher matcher = definition.getPattern().matcher(line.substring(index));
 
-            for (TokenDefinition definition : TOKEN_DEFINITIONS) {
-                Matcher matcher = definition.getPattern().matcher(input.substring(index));
+                    if (matcher.find()) {
+                        String matchedText = matcher.group();
 
-                if (matcher.find()) {
-                    String matchedText = matcher.group();
+                        // Skip comments entirely
+                        if (definition.getType().equals("COMMENT")) {
+                            index += matchedText.length();
+                            matched = true;
+                            break;
+                        }
 
-                    // Skip comments, but keep track of newlines inside them
-                    if (definition.getType().equals("COMMENT")) {
+                        // Assign identifier types correctly
+                        if (definition.getType().equals("KEYWORD") &&
+                                (matchedText.equals("integer") || matchedText.equals("boolean") ||
+                                        matchedText.equals("decimal") || matchedText.equals("char"))) {
+                            lastSeenType = matchedText;  // Track datatype
+                        } else if (definition.getType().equals("IDENTIFIER") && lastSeenType != null) {
+                            symbolTable.add(matchedText, lastSeenType);  // Store correct type
+                            lastSeenType = null;  // Reset after storing
+                        } else if (definition.getType().equals("IDENTIFIER")) {
+                            symbolTable.add(matchedText, "UNKNOWN");  // Default to UNKNOWN
+                        }
+
+                        // Add token with correct line number
+                        tokens.add(new Token(definition.getType(), matchedText, lineNumber));
+
                         index += matchedText.length();
                         matched = true;
                         break;
                     }
+                }
 
-                    // Add token with correct line number
-                    tokens.add(new Token(definition.getType(), matchedText, line));
-
-                    // Track Identifiers in Symbol Table
-                    if (definition.getType().equals("IDENTIFIER")) {
-                        symbolTable.add(matchedText, "UNKNOWN");
+                // Handle Unrecognized Characters
+                if (!matched) {
+                    if (!Character.isWhitespace(line.charAt(index))) {
+                        System.out.println("Error on line " + lineNumber + ": Unrecognized token: " + line.charAt(index));
                     }
-
-                    index += matchedText.length();
-                    matched = true;
-                    break;
+                    index++;
                 }
             }
 
-            // Handle Unrecognized Characters
-            if (!matched) {
-                if (!Character.isWhitespace(currentChar)) { // Ignore spaces
-                    System.out.println("Error on line " + line + ": Unrecognized token: " + currentChar);
-                }
-                index++;
-            }
+            lineNumber++;
         }
 
         return tokens;
     }
+
 
     private String preprocess(String input) {
         return input.replaceAll("\r", "")  // Remove carriage returns (important for Windows)
