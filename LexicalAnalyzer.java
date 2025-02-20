@@ -5,38 +5,38 @@ import java.util.*;
 
 public class LexicalAnalyzer {
     private static final Map<String, String> symbolRegistry = new HashMap<>();
-    private static final Set<String> RESERVED_WORDS = Set.of("faal", "haraf", "ishariyah", "adad", "faal_sahi", "faal_ghalat");
     private static final Set<String> MATH_OPERATORS = Set.of("+", "-", "*", "/", "%", "=");
+    private static final Set<String> RESERVED_WORDS = Set.of("faal", "haraf", "ishariyah", "adad", "faal_sahi", "faal_ghalat");
 
-    private static NFA constructIntegerNFA() {
+    private static NFA makeIntNFA() {
         NFAState start = new NFAState(0, false);
         NFAState accept = new NFAState(1, true);
         for (char digit = '0'; digit <= '9'; digit++) {
-            start.addTransition(digit, accept);
-            accept.addTransition(digit, accept);
+            start.addStateTransition(digit, accept);
+            accept.addStateTransition(digit, accept);
         }
         return new NFA(start, Set.of(accept));
     }
 
-    private static NFA constructDecimalNFA() {
+    private static NFA makeDecNFA() {
         NFAState start = new NFAState(0, false);
         NFAState decimal = new NFAState(1, false);
         NFAState accept = new NFAState(2, true);
 
         for (char digit = '0'; digit <= '9'; digit++) {
-            start.addTransition(digit, start);
-            decimal.addTransition(digit, accept);
-            accept.addTransition(digit, accept);
+            start.addStateTransition(digit, start);
+            decimal.addStateTransition(digit, accept);
+            accept.addStateTransition(digit, accept);
         }
-        start.addTransition('.', decimal);
+        start.addStateTransition('.', decimal);
         return new NFA(start, Set.of(accept));
     }
 
-    private static DFA transformNFAtoDFA(NFA nfa) {
+    private static DFA NFAtoDFA(NFA nfa) {
         Map<Set<NFAState>, DFAState> stateMapping = new HashMap<>();
         Queue<Set<NFAState>> queue = new LinkedList<>();
 
-        Set<NFAState> initialSet = Set.of(nfa.startState);
+        Set<NFAState> initialSet = Set.of(nfa.initialState);
         DFAState initialDFAState = new DFAState(initialSet);
         stateMapping.put(initialSet, initialDFAState);
         queue.add(initialSet);
@@ -47,7 +47,7 @@ public class LexicalAnalyzer {
             Map<Character, Set<NFAState>> transitionMap = new HashMap<>();
 
             for (NFAState state : currentSet) {
-                for (Map.Entry<Character, List<NFAState>> entry : state.transitions.entrySet()) {
+                for (Map.Entry<Character, List<NFAState>> entry : state.transitionMap.entrySet()) {
                     char symbol = entry.getKey();
                     transitionMap.putIfAbsent(symbol, new HashSet<>());
                     transitionMap.get(symbol).addAll(entry.getValue());
@@ -59,7 +59,7 @@ public class LexicalAnalyzer {
                 Set<NFAState> targetSet = entry.getValue();
 
                 stateMapping.putIfAbsent(targetSet, new DFAState(targetSet));
-                currentDFAState.transitions.put(symbol, stateMapping.get(targetSet));
+                currentDFAState.transitionMap.put(symbol, stateMapping.get(targetSet));
 
                 if (!stateMapping.containsKey(targetSet)) {
                     queue.add(targetSet);
@@ -137,19 +137,14 @@ public class LexicalAnalyzer {
         System.out.println("\n--- DFA Transition Table ---");
         Set<DFAState> visited = new HashSet<>();
         Queue<DFAState> queue = new LinkedList<>();
-        queue.add(dfa.startState);
-        visited.add(dfa.startState);
+        queue.add(dfa.initialState);
+        visited.add(dfa.initialState);
 
         while (!queue.isEmpty()) {
             DFAState state = queue.poll();
-            if(state.isFinal) {
-                System.out.print("State " + state.nfaStates + " (Final: " + state.isFinal + ") -> ");
-            }
-            else {
-                System.out.print("State " + state.nfaStates + ") -> ");
-            }
-            for (Map.Entry<Character, DFAState> entry : state.transitions.entrySet()) {
-                System.out.print("[" + entry.getKey() + " -> " + entry.getValue().nfaStates + "] ");
+            System.out.print("State " + state.nfaStateSet + " (Final: " + state.isAcceptState + ") -> ");
+            for (Map.Entry<Character, DFAState> entry : state.transitionMap.entrySet()) {
+                System.out.print("[" + entry.getKey() + " -> " + entry.getValue().nfaStateSet + "] ");
                 if (!visited.contains(entry.getValue())) {
                     visited.add(entry.getValue());
                     queue.add(entry.getValue());
@@ -160,15 +155,15 @@ public class LexicalAnalyzer {
     }
 
     public static void main(String[] args) throws IOException {
-        System.out.println("Processing file: example.bro\n");
+        System.out.println("Processing file: example.urd\n");
 
-        NFA intNFA = constructIntegerNFA();
-        NFA decimalNFA = constructDecimalNFA();
+        NFA intNFA = makeIntNFA();
+        NFA decimalNFA = makeDecNFA();
 
-        DFA intDFA = transformNFAtoDFA(intNFA);
-        DFA decimalDFA = transformNFAtoDFA(decimalNFA);
+        DFA intDFA = NFAtoDFA(intNFA);
+        DFA decimalDFA = NFAtoDFA(decimalNFA);
 
-        analyzeTokens("example.bro");
+        analyzeTokens("example.urd");
         renderStateTable(intDFA);
         renderStateTable(decimalDFA);
         displaySymbolRegistry();

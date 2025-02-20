@@ -1,11 +1,20 @@
 import java.util.*;
 
 public class NFA {
-    NFAState startState;
-    Set<NFAState> endStates;
+    NFAState initialState;
+    Set<NFAState> acceptingStateSet;
 
-    NFA(NFAState start, Set<NFAState> ends) {
-        this.startState = start;
-        this.endStates = ends;
+    NFA(NFAState initialState, Set<NFAState> acceptingStateSet) {
+        this.initialState = initialState;
+        this.acceptingStateSet = acceptingStateSet;
+    }
+
+    // Optional helper methods following our pattern
+    public NFAState getInitialState() {
+        return initialState;
+    }
+
+    public Set<NFAState> getAcceptingStates() {
+        return acceptingStateSet;
     }
 }
